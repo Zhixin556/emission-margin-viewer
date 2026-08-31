@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Emission Margin Viewer</title>
+  <link rel="stylesheet" href="app.css?v=20260831-11">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">EMC ANALYSIS</p>
+      <h1>Emission Margin Viewer</h1>
+    </div>
+    <div class="top-actions">
+      <div class="legend" aria-label="图例">
+        <span><i class="line result"></i>测试结果</span>
+        <span><i class="line limit"></i>限值</span>
+        <span><i class="swatch near"></i>裕量不足</span>
+        <span><i class="swatch fail"></i>超限</span>
+      </div>
+      <button class="help-button" id="helpButton" type="button">使用说明</button>
+    </div>
+  </header>
+
+  <main>
+    <aside class="controls">
+      <div class="folder-settings">
+        <label for="resultDir">结果文件夹</label>
+        <div class="path-row">
+          <input id="resultDir" type="text" readonly title="当前结果文件夹">
+          <button id="browseResult" type="button">选择</button>
+          <input id="resultFolderPicker" type="file" webkitdirectory multiple hidden>
+        </div>
+        <label for="limitDir">限值文件夹</label>
+        <div class="path-row">
+          <input id="limitDir" type="text" readonly title="当前限值文件夹">
+          <button id="browseLimit" type="button">选择</button>
+          <input id="limitFolderPicker" type="file" webkitdirectory multiple hidden>
+        </div>
+      </div>
+
+      <label for="fileSelect">测试结果</label>
+      <select id="fileSelect" disabled>
+        <option>请先选择结果文件夹</option>
+      </select>
+
+      <label>限值等级</label>
+      <div class="segmented" id="levelControl">
+        <button class="active" data-level="1">Level 1</button>
+        <button data-level="2">Level 2</button>
+      </div>
+
+      <label for="threshold">高亮阈值</label>
+      <div class="threshold-row">
+        <input id="threshold" type="range" min="0.5" max="10" step="0.5" value="3">
+        <output id="thresholdValue">3.0 dB</output>
+      </div>
+
+      <div class="summary" id="summary">
+        <span class="verdict">LOADING</span>
+        <dl>
+          <div><dt>最小裕量</dt><dd>--</dd></div>
+          <div><dt>风险频段</dt><dd>--</dd></div>
+          <div><dt>超限点</dt><dd>--</dd></div>
+        </dl>
+      </div>
+
+      <button class="export" id="exportButton">导出风险频段 CSV</button>
+      <button class="export overview-export" id="overviewButton">导出 Overview 报告</button>
+      <p class="source" id="sourceText">正在扫描 excel 文件夹...</p>
+    </aside>
+
+    <section class="workspace">
+      <div class="chart-head">
+        <div>
+          <p id="bandText">频段 --</p>
+          <h2 id="chartTitle">请选择测试结果</h2>
+        </div>
+        <div class="chart-actions">
+          <div class="tabs" id="detectorTabs" role="tablist"></div>
+          <button class="fullscreen-button" id="resetZoomButton" type="button" title="重置缩放" aria-label="重置缩放" disabled>↺</button>
+          <button class="fullscreen-button" id="fullscreenButton" type="button" title="查看完整图" aria-label="查看完整图">⛶</button>
+        </div>
+      </div>
+
+      <div class="chart-wrap" id="chartWrap">
+        <canvas id="chart" aria-label="测试结果和限值曲线" title="拖动框选局部放大；滚轮缩放；双击重置"></canvas>
+        <div class="tooltip" id="tooltip" hidden></div>
+        <div class="empty" id="empty" hidden>没有可比较的数据</div>
+      </div>
+
+      <section class="risk-panel">
+        <div class="risk-heading">
+          <h3>风险频段</h3>
+          <span id="coverageText">限值覆盖 --</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>状态</th><th>起始频率</th><th>结束频率</th><th>最小裕量</th><th>点数</th></tr></thead>
+            <tbody id="riskRows"></tbody>
+          </table>
+          <p class="table-empty" id="tableEmpty">当前检波器没有小于阈值的区域</p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog class="help-dialog" id="helpDialog" aria-labelledby="helpTitle">
+    <div class="help-header">
+      <div>
+        <p class="eyebrow">QUICK GUIDE</p>
+        <h2 id="helpTitle">使用说明</h2>
+      </div>
+      <button class="dialog-close" id="closeHelpButton" type="button" aria-label="关闭说明" title="关闭">×</button>
+    </div>
+    <div class="help-content">
+      <div class="guide-intro">
+        <p class="eyebrow">DATA PREPARATION</p>
+        <h3>使用前先准备结果和限值文件</h3>
+        <p>工具依靠文件名中的带宽（0.1kHz、0.2kHz、9kHz、120kHz、1000kHz）自动匹配测试结果与限值，请保留 BAT-EMC 导出的原始文件名。</p>
+      </div>
+      <section class="guide-section">
+        <span class="step-number">A</span>
+        <div>
+          <h3>从 BAT-EMC 导出结果</h3>
+          <p>在项目树中右键 <strong>Emission - Conducted Current</strong> 测试文件夹，选择 <strong>Export results</strong>，然后选择 <strong>EXCEL (.xls)</strong>。不要选择 TEXT (.txt)。</p>
+          <figure class="guide-figure">
+            <img src="images/1.png" alt="BAT-EMC 中依次选择 Export results 和 EXCEL xls 的操作截图">
+            <figcaption>图 1 · BAT-EMC 结果导出方式</figcaption>
+          </figure>
+        </div>
+      </section>
+      <section class="guide-section">
+        <span class="step-number">B</span>
+        <div>
+          <h3>保存并整理结果文件名</h3>
+          <p>将所有导出的 <strong>.xls</strong> 文件直接放在同一个结果文件夹中，不要再按 Level 建立子文件夹。工具会扫描该文件夹中的全部 .xls 文件。</p>
+          <div class="naming-rule">
+            <strong>推荐命名格式</strong>
+            <code>CE_CP_&lt;RBW&gt;_&lt;测试距离&gt;_Sample &lt;编号&gt;[_FAIL].xls</code>
+            <p><strong>RBW</strong> 必须替换为以下一种实际带宽，工具依靠它匹配对应限值：</p>
+            <div class="name-tags">
+              <span>0_1kHz</span><span>0_2kHz</span><span>9kHz</span><span>120kHz</span><span>1000kHz</span>
+            </div>
+            <p><strong>测试距离</strong>建议使用 <code>50mm</code>、<code>750mm</code> 等格式；样品编号写在 <code>Sample</code> 后。超限结果可在末尾增加 <code>FAIL</code>，通过结果可省略。</p>
+            <div class="name-examples">
+              <code>CE_CP_0_1kHz_50mm_Sample 1.xls</code>
+              <code>CE_CP_9kHz_50mm_Sample 1_FAIL.xls</code>
+              <code>CE_CP_120kHz_750mm_Sample 2.xls</code>
+              <code>CE_CP_1000kHz_750mm_Sample 2_FAIL.xls</code>
+            </div>
+          </div>
+          <figure class="guide-figure">
+            <img src="images/2.png" alt="excel 结果文件夹中的多个 xls 文件截图">
+            <figcaption>图 2 · 结果文件夹示例</figcaption>
+          </figure>
+        </div>
+      </section>
+      <section class="guide-section">
+        <span class="step-number">C</span>
+        <div>
+          <h3>保存限值文件</h3>
+          <p>限值根目录下分别保存 <strong>BAT_EMC_CEC_Level1</strong> 和 <strong>BAT_EMC_CEC_Level2</strong>。每个 Level 中应包含五种带宽对应的 .txt 文件。</p>
+          <pre class="folder-tree">Limit/
+├─ BAT_EMC_CEC_Level1/
+│  └─ BAT_EMC_CEC_Level1/
+│     ├─ CE_CP_0.1kHz_*.txt
+│     ├─ CE_CP_0.2kHz_*.txt
+│     ├─ CE_CP_9kHz_*.txt
+│     ├─ CE_CP_120kHz_*.txt
+│     └─ CE_CP_1000kHz_*.txt
+└─ BAT_EMC_CEC_Level2/
+   └─ BAT_EMC_CEC_Level2/
+      └─ 同样的五种带宽限值文件</pre>
+          <figure class="guide-figure">
+            <img src="images/3.png" alt="Level 1 文件夹中的五种带宽限值 txt 文件截图">
+            <figcaption>图 3 · 单个 Level 的限值文件示例</figcaption>
+          </figure>
+        </div>
+      </section>
+      <div class="guide-divider"><span>工具操作</span></div>
+      <section>
+        <span class="step-number">01</span>
+        <div><h3>选择数据</h3><p>依次选择结果文件夹和限值文件夹。直接打开 HTML 时，浏览器仅在本机内存中读取文件，不会上传数据。</p></div>
+      </section>
+      <section>
+        <span class="step-number">02</span>
+        <div><h3>浏览结果</h3><p>在“测试结果”中切换文件，选择 Level 1/2 和 Peak、Q-Peak、Avg 检波器。系统会按文件名自动匹配频段限值。</p></div>
+      </section>
+      <section>
+        <span class="step-number">03</span>
+        <div><h3>判断裕量</h3><p>裕量 = 限值 − 测试结果。橙色表示裕量小于设定阈值，红色表示结果已超过限值；默认阈值为 3 dB。</p></div>
+      </section>
+      <section>
+        <span class="step-number">04</span>
+        <div><h3>缩放图表</h3><p>在 Plot 内拖动框选局部放大，滚轮以指针位置缩放。双击图表或点击 ↺ 恢复全图，点击 ⛶ 查看完整图。</p></div>
+      </section>
+      <section>
+        <span class="step-number">05</span>
+        <div><h3>导出报告</h3><p>“导出风险频段 CSV”保存当前文件和检波器的风险区间；“导出 Overview 报告”汇总当前 Level 下全部结果。</p></div>
+      </section>
+    </div>
+    <div class="help-note"><strong>限值文件结构：</strong>可直接选择包含 Level 1/Level 2 子目录的 Limit 根目录。</div>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="app.js?v=20260831-11"></script>
+</body>
+</html>
